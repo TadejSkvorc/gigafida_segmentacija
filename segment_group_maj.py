@@ -680,8 +680,8 @@ def split_for_delo(filename):
     
 
 def split_for_dnevnik(filename):
-    print(filename)
-    
+    #print(filename)
+    lines_since_v_srediscu = 0
     with open('./ALL_CAPS_NASLOVI', 'a', encoding='utf-8') as acf:
         print(filename, file=acf)
     
@@ -714,7 +714,7 @@ def split_for_dnevnik(filename):
             words = get_words_from_paragraph(paragraph)
             sents = get_sents_from_paragraph(paragraph)
             words_to_count = [w for w in words if w != ' ']
-            
+            lines_since_v_srediscu += 1
 
             if len(words) == 0:
                 continue
@@ -724,17 +724,35 @@ def split_for_dnevnik(filename):
                     if len(current_article) > 4:
                         to_split = True
                         #print("appended6", words)
+            # Split by key words (split before)
+            if (words[0] in ["ODER", "GLASBA", "RAZSTAVE", "OTROŠKI"]) or (len(words)>=3 and words[0] == "DRUGI" and words[2] == "DOGODKI"):
+                to_split = True
+                #print("ODER in ostalo in ", filename)
+                
+            if (len(words)>=3 and words[0] == "V" and words[2] == "SREDIŠČU"):
+                if(lines_since_v_srediscu>10):
+                    to_split = True
+                    lines_since_v_srediscu = 0
+                    #print("V SREDISCU in ", filename)
+            
             # Split by all-caps organization abbreviation at the end. Also works for author abbrvs.
             """
             if words[-1].isupper() and words[-1] != '.' and len(words[-1]) < 10:
                 split_on_next_paragraph = True
                 print("appended5", words)
             """
+            # Split by key words (split before)
+            if(words[0] == "DNEVNIKOVO" and words[2] == "BIOVREME"):
+                to_split = True
+                #print("DNEVNIKOVO BIOVREME in ", filename)
+            if(words[0] == "BIOVREME"):
+                to_split = True
+                #print("BIOVREME in ", filename)
             # Split by author in brackets
             if len(words) > 3 and words[-3] == "("  and len(words[-2]) <= 3:
                 split_on_next_paragraph = True;
                 #print(words[-3], words[-2], words[-1])
-                
+            
             # Split by author abbrvs. Could be A. B. or A. Bb. or Aa. B or Aa. Bb.
             author_regex = "[A-Z]\."
             author_regex2 = "[A-Z][a-z]\."
@@ -772,18 +790,18 @@ def split_for_dnevnik(filename):
                     
             # Split by Name + Surname + No comma at the end of article
             # VER MAJ ločevanje po avtorjih izgleda zmede stvari, ker so včasih vrinjeni med naslove, sedaj izbrisano
-            """
+
             if (len(sents[-1]) == 3 and sents[-1][0] in slo_imena and sents[-1][2] in slo_imena and sents[-1][-1] not in ['.', '!', '?', ':', ';', ' ', ',', '«', '«']):
                 split_on_next_paragraph = True
-            """
+
             #print("appended2", words)
             # Še za tri imena
             # VER MAJ - Tudi tukaj
-            """
+
             if (len(sents[-1]) == 5 and sents[-1][0] in slo_imena and sents[-1][2] in slo_imena and sents[-1][4] in slo_imena and sents[-1][-1] not in ['.', '!', '?', ':', ';', ' ', ',', '«', '«']):
                 split_on_next_paragraph = True
                 #print("appended1", words)
-            """
+
             # Split on "CITY, num". Isto kot za staro lokacijo, samo če pred tem že imamo nek članek
             #if (words[0][:-1].isupper() and words[0][-1] == ',' and words[1][:-1].isdigit()):
             """
@@ -793,16 +811,30 @@ def split_for_dnevnik(filename):
                     split_on_prev_paragraph = True
             """
             split_on_all_caps_names = False
-            # SPLIT ON ALL CAPS NAMES
             
+            
+            # SPLIT ON ALL CAPS NAMES
             if (len(sents[-1]) == 3 and sents[-1][0] in slo_imena_upper and sents[-1][2] in slo_imena_upper and sents[-1][-1] not in ['.', '!', '?', ':', ';', ' ', ',', '«', '«']):
                 split_on_next_paragraph = True
                 split_on_all_caps_names = True
+                #print("SLO IMENA UPPER", sents[-1])
+            if('-' in sents[-1] and sents[-1][0] in slo_imena_upper):
+                imena_ok = True
+                for w in sents[-1]:
+                    #print(w, not (w in slo_imena_upper or w==' ' or w=='-'))
+                    if not (w in slo_imena_upper or w==' ' or w=='-'):
+                        imena_ok = False
+                        break
+                if imena_ok:
+                    split_on_next_paragraph = True
+                    split_on_all_caps_names = True
+                    #print("SLO IMENA UPPER", sents[-1])
+            
                 #print("appended2", words)
             
             # SPLIT ON ALL CAPS PARAGRAPH
             # VER MAJ - odstranjeno all caps, če ne gre za imena. Sedaj le izpis
-            
+            """
             if len(words) < 10:
                 is_all_caps = True
                 for w in words:
@@ -817,7 +849,7 @@ def split_for_dnevnik(filename):
                         with open('./ALL_CAPS_NASLOVI', 'a', encoding='utf-8') as acf:
                             print("".join(words), file=acf)
                             #print("ALL_CAPS_NASLOV: ", words)
-                       
+            """           
             # Split on titles without commas followed by a location
             if (not split_on_prev_paragraph) and not (split_on_next_paragraph) and not (to_split):
             #if (not split_on_prev_paragraph) and not (split_on_next_paragraph):
@@ -826,11 +858,17 @@ def split_for_dnevnik(filename):
                     candidate_titles.append(paragraph)
                     do_not_append_to_article = True
                 else: 
-                    if ((words[0].isupper() and len(words) > 3 and  words[1] == ',' and words[3][:-1].isdigit()) 
-                    or (words[0].isupper() and len(words) > 6 and words[1] == ',' and words[3].isupper() and words[4] == ',' and words[6][:-1].isdigit())
-                    or (words[0].isupper() and words[1] == ' ' and words[2][0].isupper())
-                    or (words[0].isupper() and words[1] == ' ' and words[2].isupper() and words[3] == ' ' and words[4][0].isupper())
-                    or (words[0].isupper() and words[1] == ' ' and words[0] not in slo_imena_upper )):    
+                    # Fix nTirana
+                    if words[0][0] =='n' and words[0][1:].isupper():
+                        temp_word0 = words[0][1:]
+                        #print("nTirana in ", filename)
+                    else:
+                        temp_word0 = words[0]
+                    if ((temp_word0.isupper() and len(words) > 3 and  words[1] == ',' and words[3][:-1].isdigit()) 
+                    or (temp_word0.isupper() and len(words) > 6 and words[1] == ',' and words[3].isupper() and words[4] == ',' and words[6][:-1].isdigit())
+                    or (temp_word0.isupper() and words[1] == ' ' and words[2][0].isupper())
+                    or (temp_word0.isupper() and words[1] == ' ' and words[2].isupper() and words[3] == ' ' and words[4][0].isupper())
+                    or (temp_word0.isupper() and words[1] == ' ' and words[0] not in slo_imena_upper )):    
                         if candidate_titles != []:
                             #print('MULTI TITLE SPLIT', words[:3])
                             if (len(current_article) != 0):
@@ -1179,16 +1217,18 @@ print('done 4')
 #for start in range(0, 10727, 500):
 print("filename dict len", len(filename_dict['Dolenjski list']))
 #exit()
-
-#segment_one_with_func("./gigafida_nondedup/GF02/GF0283017.xml", split_for_dnevnik)
-#exit()
-#for start in range(0, 2602, 100):
+"""
+print("segmenting one")
+segment_one_with_func("./gigafida_nondedup/GF09/GF0904780.xml", split_for_dnevnik)
+print("done")
+exit()
+"""
 for start in range(0, 2602, 100):
-    
+#or start in range(0, 50, 50):
+    print(start)
     #articles, num_articles_vector, article_lengths, article_titles = segment_all_in_group_with_func(filename_dict['Delo'], split_for_delo, start=start, end=start+500)
-    
     articles, num_articles_vector, article_lengths, article_titles = segment_all_in_group_with_func(filename_dict['Dnevnik'], split_for_dnevnik, start=start, end=start+100)
-    pick_most_average_articles(articles, num_articles_vector, article_lengths, article_titles, "dnevnik_nondedup_testing")
+    pick_most_average_articles(articles, num_articles_vector, article_lengths, article_titles, "dnevnik_maj_final_test")
     
 
 # Dolenjski list
